@@ -1,0 +1,147 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[17]:
+
+
+import os
+import openai
+import pandas as pd
+
+
+# In[ ]:
+
+
+
+
+
+# In[18]:
+
+
+
+
+# In[19]:
+
+
+def transcribe_audio(file_path):
+    try:
+        with open(file_path, "rb") as audio_file:
+            response = openai.Audio.transcribe(
+                model="whisper-1",
+                file=audio_file,
+                response_format="text",
+                language="es"  # Set the language of the audio file to Spanish
+            )
+        if isinstance(response, str):
+            return response
+        else:
+            print(f"Unexpected response format: {response}")
+            return ""
+    except Exception as e:
+        print(f"Error during transcription: {e}")
+        return ""
+
+
+# In[20]:
+
+
+def translate_text(text, target_language="en"):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"Translate the following text to {target_language}:"
+                },
+                {
+                    "role": "user",
+                    "content": text
+                }
+            ]
+        )
+        if response and 'choices' in response and len(response['choices']) > 0:
+            return response['choices'][0]['message']['content'].strip()
+        else:
+            print("Translation failed.")
+            return ""
+    except Exception as e:
+        print(f"Error during translation: {e}")
+        return ""
+
+def identify_roles(transcript):
+    # Dummy implementation of role identification
+    # You should replace this with actual logic for role identification
+    return transcript
+
+
+# In[21]:
+
+
+audio_path = r"C:\Users\TanujaKumari\OneDrive - OYO Enterprise\Desktop\Prank_calls"
+conversations = []
+
+for audio_file in os.listdir(audio_path):
+    if audio_file.endswith('.mp3'):
+        file_path = os.path.join(audio_path, audio_file)
+        try:
+            transcript = transcribe_audio(file_path)
+            if not transcript:
+                print(f"Error: Transcription failed for file {audio_file}.")
+                continue
+
+            translated_transcript = translate_text(transcript)
+            if not translated_transcript:
+                print(f"Error: Translation failed for file {audio_file}.")
+                continue
+
+            structured_conversation = identify_roles(translated_transcript)
+            if not structured_conversation:
+                print(f"Error: Role identification failed for file {audio_file}.")
+                continue
+            
+            conversation = {
+                'File Name': audio_file,
+                'Transcript': translated_transcript,
+                'Structured Conversation': structured_conversation
+            }
+            conversations.append(conversation)
+        except Exception as e:
+            print(f"Error processing file {audio_file}: {e}")
+
+
+# In[22]:
+
+
+# Compile all conversations into a single DataFrame
+all_data = []
+
+for conversation in conversations:
+    for line in conversation['Structured Conversation'].split('\n'):
+        if line.startswith('Agent:'):
+            role = 'Agent'
+            dialogue = line.replace('Agent:', '').strip()
+        elif line.startswith('Client:'):
+            role = 'Client'
+            dialogue = line.replace('Client:', '').strip()
+        else:
+            continue
+        all_data.append({
+            'File Name': conversation['File Name'],
+            'Role': role,
+            'Dialogue': dialogue
+        })
+
+# Create a DataFrame and save to CSV
+df = pd.DataFrame(all_data)
+csv_path = os.path.join(audio_path, 'call_transcripts.csv')
+df.to_csv(csv_path, index=False)
+
+print(f"Processing complete. CSV file saved at {csv_path}.")
+
+
+# In[ ]:
+
+
+
+
